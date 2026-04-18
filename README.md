@@ -19,7 +19,7 @@ NoviKash is a fintech API built with FastAPI, providing a unique **Social Loan**
 
 - **Framework**: FastAPI
 - **ORM**: SQLModel (SQLAlchemy + Pydantic)
-- **Database**: SQLite (default, configurable via environment variables)
+- **Database**: PostgreSQL (production), SQLite (development)
 - **Security**: Passlib (bcrypt) & Python-Jose (JWT)
 
 ## Deployment

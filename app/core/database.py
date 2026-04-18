@@ -1,14 +1,9 @@
 import os
 from sqlmodel import create_engine, Session, SQLModel
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./novikash.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://mahizuconnectics:servicePONDIKPA2025@novikash-novi-l42sq2:5432/postgres")
 
-# Ensure we use SQLite for local development
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, echo=True, connect_args={"check_same_thread": False})
-else:
-    # For production databases like PostgreSQL
-    engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL, echo=True)
 
 def init_db():
     SQLModel.metadata.create_all(engine)

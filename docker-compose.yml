@@ -6,13 +6,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite:///./novikash.db
-      - SECRET_KEY=your-production-secret-key-here
+      - DATABASE_URL=postgresql://mahizuconnectics:servicePONDIKPA2025@novikash-novi-l42sq2:5432/postgres
+      - SECRET_KEY=novikash-production-secret-key-2026
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - LOAN_INTEREST_RATE=0.1
       - DEFAULT_REPAYMENT_DAYS=7
-    volumes:
-      - ./novikash.db:/app/novikash.db
-      - ./uploads:/app/uploads
     restart: unless-stopped

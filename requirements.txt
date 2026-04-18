@@ -10,3 +10,4 @@ python-dotenv
 httpx
 email-validator
 apscheduler
+psycopg2-binary
