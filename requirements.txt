@@ -3,7 +3,7 @@ uvicorn
 sqlmodel
 alembic
 python-jose[cryptography]
-passlib[bcrypt]
+passlib[argon2]
 pydantic-settings
 python-multipart
 python-dotenv
