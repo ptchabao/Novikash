@@ -12,4 +12,9 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - LOAN_INTEREST_RATE=0.1
       - DEFAULT_REPAYMENT_DAYS=7
+    volumes:
+      - uploads_data:/app/uploads
     restart: unless-stopped
+
+volumes:
+  uploads_data:
