@@ -19,8 +19,42 @@ NoviKash is a fintech API built with FastAPI, providing a unique **Social Loan**
 
 - **Framework**: FastAPI
 - **ORM**: SQLModel (SQLAlchemy + Pydantic)
-- **Database**: SQLite (default, configurable via `.env`)
+- **Database**: SQLite (default, configurable via environment variables)
 - **Security**: Passlib (bcrypt) & Python-Jose (JWT)
+
+## Deployment
+
+### Docker
+
+Build and run with Docker:
+
+```bash
+# Build the image
+docker build -t novikash-api .
+
+# Run the container
+docker run -p 8000:8000 -e SECRET_KEY=your-secret-key-here novikash-api
+```
+
+### Docker Compose
+
+For local development with persistent database:
+
+```bash
+docker-compose up --build
+```
+
+### Dokploy
+
+1. Connect your GitHub repository to Dokploy
+2. Create a new service using the Dockerfile
+3. Set environment variables in Dokploy:
+   - `DATABASE_URL`: Your database URL (SQLite for simple deployments)
+   - `SECRET_KEY`: A secure random string
+   - `ALGORITHM`: HS256
+   - `ACCESS_TOKEN_EXPIRE_MINUTES`: 30
+   - `LOAN_INTEREST_RATE`: 0.1
+   - `DEFAULT_REPAYMENT_DAYS`: 7
 
 ## Getting Started
 
