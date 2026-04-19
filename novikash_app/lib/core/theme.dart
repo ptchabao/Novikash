@@ -12,16 +12,22 @@ class AppTheme {
     return ThemeData(
       brightness: Brightness.light,
       primaryColor: primaryColor,
-      scaffoldBackgroundColor: backgroundColor,
+      scaffoldBackgroundColor: const Color(0xFFF7F7F9),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFFF7F7F9),
+        foregroundColor: Colors.black,
+        elevation: 0,
+        centerTitle: false,
+      ),
       textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme).apply(
         bodyColor: Colors.black,
         displayColor: Colors.black,
       ),
       cardTheme: CardThemeData(
         color: Colors.white,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        shadowColor: Colors.black.withOpacity(0.1),
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shadowColor: Colors.black.withAlpha(15),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -34,7 +40,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: const Color(0xFFFFFFFF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -45,7 +51,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: primaryColor, width: 2),
+          borderSide: BorderSide(color: primaryColor, width: 2),
         ),
       ),
     );

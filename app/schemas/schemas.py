@@ -72,6 +72,7 @@ class PaymentRequest(BaseModel):
 # --- Loan Schemas ---
 
 class LoanRequest(BaseModel):
+    loan_type: str = "ALOBA"  # NOVI+, ALOBA
     amount: float
     guarantors: List[str] # List of phone numbers
 
@@ -81,6 +82,7 @@ class GuaranteeResponse(BaseModel):
 class LoanRead(BaseModel):
     id: int
     borrower_id: int
+    loan_type: str
     amount: float
     interest_rate: float
     total_amount: float

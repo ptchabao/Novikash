@@ -57,6 +57,7 @@ class Transaction(SQLModel, table=True):
 class Loan(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     borrower_id: int = Field(foreign_key="user.id")
+    loan_type: str = Field(default="ALOBA")  # NOVI+, ALOBA
     amount: float
     interest_rate: float
     total_amount: float

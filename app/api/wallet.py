@@ -79,3 +79,64 @@ def transfer(
     session.refresh(transaction)
     
     return transaction
+
+@router.post("/transfer-external")
+def transfer_external(
+    data: TransferRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid amount")
+    
+    sender_wallet = current_user.wallet
+    # Add fees for external transfer
+    fee = data.amount * 0.02  # 2% fee
+    total_deduct = data.amount + fee
+    if sender_wallet.balance_available < total_deduct:
+        raise HTTPException(status_code=400, detail="Insufficient funds (including fees)")
+    
+    # Deduct from sender
+    sender_wallet.balance_available -= total_deduct
+    
+    # Create transaction
+    transaction = Transaction(
+        type="EXTERNAL_TRANSFER",
+        amount=data.amount,
+        status="SUCCESS",  # Assume success for now
+        reference=str(uuid.uuid4()),
+        sender_wallet_id=sender_wallet.id
+    )
+    
+    session.add(sender_wallet)
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+    
+    return transaction
+
+@router.post("/generate-payment-link")
+def generate_payment_link(
+    amount: float,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid amount")
+    
+    # Generate a unique link
+    link_id = str(uuid.uuid4())
+    # In a real app, store this in DB or use a service
+    payment_link = f"https://novikash.com/pay/{link_id}?user={current_user.id}&amount={amount}"
+    
+    # For now, just return the link
+    return {"payment_link": payment_link}
+
+@router.get("/check-user/{phone}")
+def check_user_exists(
+    phone: str,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    user = session.exec(select(User).where(User.phone == phone)).first()
+    return {"exists": user is not None}
