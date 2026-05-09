@@ -68,6 +68,45 @@ class PaymentRequest(BaseModel):
     amount: float
     currency: str = "XOF"
     phone: str # MTN/Moov number
+    network: Optional[str] = None # FLOOZ or TMONEY
+
+# --- PayGateGlobal Schemas ---
+
+class PayGateInitiateRequest(BaseModel):
+    phone_number: str
+    amount: float
+    description: Optional[str] = None
+    identifier: str
+    network: str  # FLOOZ or TMONEY
+
+class PayGateInitiateResponse(BaseModel):
+    tx_reference: str
+    status: int  # 0: success, 2: invalid token, 4: invalid params, 6: duplicate
+
+class PayGateStatusRequest(BaseModel):
+    tx_reference: Optional[str] = None
+    identifier: Optional[str] = None
+
+class PayGateStatusResponse(BaseModel):
+    tx_reference: str
+    identifier: Optional[str] = None
+    payment_reference: Optional[str] = None
+    status: int  # 0: success, 2: pending, 4: expired, 6: cancelled
+    datetime: Optional[str] = None
+    payment_method: Optional[str] = None
+
+class PayGateBalanceResponse(BaseModel):
+    flooz: float
+    tmoney: float
+
+class PayGateWebhookData(BaseModel):
+    tx_reference: str
+    identifier: str
+    payment_reference: str
+    amount: float
+    datetime: str
+    payment_method: str
+    phone_number: str
 
 # --- Loan Schemas ---
 

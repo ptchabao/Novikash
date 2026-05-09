@@ -3,74 +3,214 @@ from sqlmodel import Session, select
 from datetime import datetime
 from typing import Optional
 import uuid
+import os
+import httpx
 from app.core.database import get_session
 from app.api.auth import get_current_user, get_admin_user
 from app.models.models import User, Wallet, Transaction, Notification
-from app.schemas.schemas import PaymentRequest, TransactionRead
+from app.schemas.schemas import PaymentRequest, TransactionRead, PayGateInitiateRequest, PayGateInitiateResponse, PayGateStatusRequest, PayGateStatusResponse, PayGateBalanceResponse, PayGateWebhookData
+
+router = APIRouter()
+
+PAYGATE_API_KEY = os.getenv("PAYGATE_API_KEY")
+PAYGATE_BASE_URL = os.getenv("PAYGATE_BASE_URL", "https://paygateglobal.com")
+
+async def initiate_paygate_payment(phone_number: str, amount: float, description: str, identifier: str, network: str) -> PayGateInitiateResponse:
+    """Initiate a payment using PayGateGlobal API Method 1"""
+    url = f"{PAYGATE_BASE_URL}/api/v1/pay"
+    payload = {
+        "auth_token": PAYGATE_API_KEY,
+        "phone_number": phone_number,
+        "amount": amount,
+        "description": description,
+        "identifier": identifier,
+        "network": network
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        return PayGateInitiateResponse(**data)
+
+async def check_payment_status(tx_reference: Optional[str] = None, identifier: Optional[str] = None) -> PayGateStatusResponse:
+    """Check payment status using PayGateGlobal API"""
+    if tx_reference:
+        url = f"{PAYGATE_BASE_URL}/api/v1/status"
+        payload = {
+            "auth_token": PAYGATE_API_KEY,
+            "tx_reference": tx_reference
+        }
+    elif identifier:
+        url = f"{PAYGATE_BASE_URL}/api/v2/status"
+        payload = {
+            "auth_token": PAYGATE_API_KEY,
+            "identifier": identifier
+        }
+    else:
+        raise ValueError("Either tx_reference or identifier must be provided")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        return PayGateStatusResponse(**data)
+
+async def check_paygate_balance() -> PayGateBalanceResponse:
+    """Check PayGateGlobal account balance"""
+    url = f"{PAYGATE_BASE_URL}/api/v1/check-balance"
+    payload = {
+        "auth_token": PAYGATE_API_KEY
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        return PayGateBalanceResponse(**data)
 
 router = APIRouter()
 
 @router.post("/deposit")
-def deposit(data: PaymentRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
-    # Simulate redirection to payment gateway or USSD prompt
-    # In a real app, we'd call MTN/Moov API here.
-    
-    # We create a PENDING transaction
-    ref = str(uuid.uuid4())
-    transaction = Transaction(
-        type="DEPOSIT",
-        amount=data.amount,
-        status="PENDING",
-        reference=ref,
-        receiver_wallet_id=current_user.wallet.id
-    )
-    session.add(transaction)
-    session.commit()
-    
-    return {
-        "message": "Deposit initiated. Please confirm on your phone.",
-        "reference": ref,
-        "operator_url_mock": f"https://mock-momo.com/pay/{ref}"
-    }
+async def deposit(data: PaymentRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    """Initiate a deposit using PayGateGlobal"""
+    try:
+        # Generate unique identifier for this transaction
+        identifier = str(uuid.uuid4())
+        
+        # Determine network based on phone number or use provided network
+        network = data.network or "FLOOZ"  # Default to FLOOZ, could be enhanced with phone number validation
+        
+        # Initiate payment with PayGateGlobal
+        paygate_response = await initiate_paygate_payment(
+            phone_number=data.phone,
+            amount=data.amount,
+            description=f"Deposit to NoviKash wallet",
+            identifier=identifier,
+            network=network
+        )
+        
+        if paygate_response.status != 0:
+            # Handle PayGateGlobal errors
+            error_messages = {
+                2: "Invalid authentication token",
+                4: "Invalid parameters",
+                6: "Duplicate transaction identifier"
+            }
+            error_msg = error_messages.get(paygate_response.status, "Unknown error")
+            raise HTTPException(status_code=400, detail=f"Payment initiation failed: {error_msg}")
+        
+        # Create transaction record
+        transaction = Transaction(
+            type="DEPOSIT",
+            amount=data.amount,
+            status="PENDING",
+            reference=paygate_response.tx_reference,
+            receiver_wallet_id=current_user.wallet.id
+        )
+        session.add(transaction)
+        session.commit()
+        
+        return {
+            "message": "Deposit initiated successfully. Please complete payment on your phone.",
+            "tx_reference": paygate_response.tx_reference,
+            "identifier": identifier,
+            "status": "pending"
+        }
+        
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
-def process_transaction_async(ref: str, status: str, sqlite_db_path: str):
+@router.post("/webhook")
+async def paygate_webhook(request: Request, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     """
-    Background logic to update financial status.
+    Webhook for PayGateGlobal payment confirmations.
+    """
+    try:
+        data = await request.json()
+        webhook_data = PayGateWebhookData(**data)
+        
+        # Process the webhook asynchronously
+        from app.core.database import DATABASE_URL
+        background_tasks.add_task(process_paygate_webhook_async, webhook_data, DATABASE_URL)
+        
+        return {"status": "accepted_for_processing"}
+        
+    except Exception as e:
+        # Log the error but still return success to PayGateGlobal
+        print(f"Webhook processing error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+def process_paygate_webhook_async(webhook_data: PayGateWebhookData, sqlite_db_path: str):
+    """
+    Background logic to process PayGateGlobal webhook and update transaction status.
     """
     from sqlmodel import create_engine
     engine = create_engine(sqlite_db_path)
     with Session(engine) as session:
-        transaction = session.exec(select(Transaction).where(Transaction.reference == ref)).first()
-        if not transaction or transaction.status != "PENDING":
+        # Find transaction by tx_reference
+        transaction = session.exec(
+            select(Transaction).where(Transaction.reference == webhook_data.tx_reference)
+        ).first()
+        
+        if not transaction:
+            print(f"Transaction not found for tx_reference: {webhook_data.tx_reference}")
             return
         
-        if status == "SUCCESS":
-            transaction.status = "SUCCESS"
-            transaction.processed_at = datetime.utcnow()
-            wallet = session.exec(select(Wallet).where(Wallet.id == transaction.receiver_wallet_id)).first()
+        if transaction.status != "PENDING":
+            print(f"Transaction already processed: {transaction.status}")
+            return
+        
+        # Update transaction status
+        transaction.status = "SUCCESS"
+        transaction.processed_at = datetime.utcnow()
+        
+        # Update wallet balance
+        wallet = session.exec(select(Wallet).where(Wallet.id == transaction.receiver_wallet_id)).first()
+        if wallet:
             wallet.balance_available += transaction.amount
             session.add(wallet)
-        else:
-            transaction.status = "FAILED"
-            transaction.processed_at = datetime.utcnow()
-            
+        
+        # Create notification
+        notification = Notification(
+            user_id=wallet.user_id if wallet else None,
+            type="PAYMENT_SUCCESS",
+            message=f"Payment of {transaction.amount} XOF received successfully"
+        )
+        session.add(notification)
+        
         session.add(transaction)
         session.commit()
 
-@router.post("/webhook")
-async def momo_webhook(request: Request, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
-    """
-    Mock webhook for Mobile Money operators (MTN/Moov).
-    """
-    data = await request.json()
-    ref = data.get("reference")
-    status = data.get("status") # SUCCESS or FAILED
-    
-    # We return immediately to the operator
-    from app.core.database import DATABASE_URL
-    background_tasks.add_task(process_transaction_async, ref, status, DATABASE_URL)
-    
-    return {"status": "accepted_for_processing"}
+@router.post("/status")
+async def check_payment_status_endpoint(
+    request: PayGateStatusRequest, 
+    current_user: User = Depends(get_current_user)
+):
+    """Check the status of a payment"""
+    try:
+        status_response = await check_payment_status(
+            tx_reference=request.tx_reference,
+            identifier=request.identifier
+        )
+        return status_response
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+@router.get("/balance")
+async def get_paygate_balance(admin_user: User = Depends(get_admin_user)):
+    """Get PayGateGlobal account balance (Admin only)"""
+    try:
+        balance_response = await check_paygate_balance()
+        return balance_response
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 @router.post("/withdraw")
 def withdraw(data: PaymentRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
