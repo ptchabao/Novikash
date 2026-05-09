@@ -1,21 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from sqlmodel import Session, select
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 import uuid
 import os
 import httpx
+import logging
 from app.core.database import get_session
 from app.api.auth import get_current_user, get_admin_user
 from app.models.models import User, Wallet, Transaction, Notification
 from app.schemas.schemas import PaymentRequest, TransactionRead, PayGateInitiateRequest, PayGateInitiateResponse, PayGateStatusRequest, PayGateStatusResponse, PayGateBalanceResponse, PayGateWebhookData
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 PAYGATE_API_KEY = os.getenv("PAYGATE_API_KEY")
 PAYGATE_BASE_URL = os.getenv("PAYGATE_BASE_URL", "https://paygateglobal.com")
 
-async def initiate_paygate_payment(phone_number: str, amount: float, description: str, identifier: str, network: str) -> PayGateInitiateResponse:
+async def initiate_paygate_payment(phone_number: str, amount: float, description: str, identifier: str, network: str) -> Dict[str, Any]:
     """Initiate a payment using PayGateGlobal API Method 1"""
     url = f"{PAYGATE_BASE_URL}/api/v1/pay"
     payload = {
@@ -27,13 +30,29 @@ async def initiate_paygate_payment(phone_number: str, amount: float, description
         "network": network
     }
     
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        return PayGateInitiateResponse(**data)
+    logger.info(f"Initiating PayGateGlobal payment: {payload}")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, json=payload)
+            logger.info(f"PayGateGlobal response status: {response.status_code}")
+            
+            if response.status_code != 200:
+                logger.error(f"PayGateGlobal HTTP error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail=f"PayGateGlobal API error: {response.text}")
+            
+            data = response.json()
+            logger.info(f"PayGateGlobal response data: {data}")
+            return data
+            
+    except httpx.RequestError as e:
+        logger.error(f"PayGateGlobal request error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Payment service connection error: {str(e)}")
+    except Exception as e:
+        logger.error(f"PayGateGlobal unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
 
-async def check_payment_status(tx_reference: Optional[str] = None, identifier: Optional[str] = None) -> PayGateStatusResponse:
+async def check_payment_status(tx_reference: Optional[str] = None, identifier: Optional[str] = None) -> Dict[str, Any]:
     """Check payment status using PayGateGlobal API"""
     if tx_reference:
         url = f"{PAYGATE_BASE_URL}/api/v1/status"
@@ -50,26 +69,50 @@ async def check_payment_status(tx_reference: Optional[str] = None, identifier: O
     else:
         raise ValueError("Either tx_reference or identifier must be provided")
     
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        return PayGateStatusResponse(**data)
+    logger.info(f"Checking PayGateGlobal payment status: {payload}")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, json=payload)
+            logger.info(f"PayGateGlobal status response: {response.status_code}")
+            
+            if response.status_code != 200:
+                logger.error(f"PayGateGlobal HTTP error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail=f"PayGateGlobal API error")
+            
+            data = response.json()
+            logger.info(f"PayGateGlobal status data: {data}")
+            return data
+            
+    except httpx.RequestError as e:
+        logger.error(f"PayGateGlobal status request error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
 
-async def check_paygate_balance() -> PayGateBalanceResponse:
+async def check_paygate_balance() -> Dict[str, Any]:
     """Check PayGateGlobal account balance"""
     url = f"{PAYGATE_BASE_URL}/api/v1/check-balance"
     payload = {
         "auth_token": PAYGATE_API_KEY
     }
     
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        return PayGateBalanceResponse(**data)
-
-router = APIRouter()
+    logger.info("Checking PayGateGlobal balance")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, json=payload)
+            logger.info(f"PayGateGlobal balance response: {response.status_code}")
+            
+            if response.status_code != 200:
+                logger.error(f"PayGateGlobal HTTP error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail=f"PayGateGlobal API error")
+            
+            data = response.json()
+            logger.info(f"PayGateGlobal balance data: {data}")
+            return data
+            
+    except httpx.RequestError as e:
+        logger.error(f"PayGateGlobal balance request error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
 
 @router.post("/deposit")
 async def deposit(data: PaymentRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
@@ -80,11 +123,15 @@ async def deposit(data: PaymentRequest, current_user: User = Depends(get_current
         if not phone_number:
             raise HTTPException(status_code=400, detail="Phone number is required")
         
+        # Validate network
+        if not data.network:
+            raise HTTPException(status_code=400, detail="Network (FLOOZ or TMONEY) is required")
+        
+        if data.network.upper() not in ["FLOOZ", "TMONEY"]:
+            raise HTTPException(status_code=400, detail="Network must be FLOOZ or TMONEY")
+        
         # Generate unique identifier for this transaction
         identifier = str(uuid.uuid4())
-        
-        # Determine network based on phone number or use provided network
-        network = data.network or "FLOOZ"  # Default to FLOOZ, could be enhanced with phone number validation
         
         # Initiate payment with PayGateGlobal
         paygate_response = await initiate_paygate_payment(
@@ -92,33 +139,48 @@ async def deposit(data: PaymentRequest, current_user: User = Depends(get_current
             amount=data.amount,
             description=f"Deposit to NoviKash wallet",
             identifier=identifier,
-            network=network
+            network=data.network.upper()
         )
         
-        if paygate_response.status != 0:
+        # Check response status code
+        response_status = paygate_response.get("status")
+        if response_status is None:
+            logger.error(f"Missing status in PayGateGlobal response: {paygate_response}")
+            raise HTTPException(status_code=500, detail="Invalid response from payment service")
+        
+        if response_status != 0:
             # Handle PayGateGlobal errors
             error_messages = {
                 2: "Invalid authentication token",
                 4: "Invalid parameters",
                 6: "Duplicate transaction identifier"
             }
-            error_msg = error_messages.get(paygate_response.status, "Unknown error")
+            error_msg = error_messages.get(response_status, f"Payment service error (code: {response_status})")
+            logger.warning(f"PayGateGlobal returned error status {response_status}: {error_msg}")
             raise HTTPException(status_code=400, detail=f"Payment initiation failed: {error_msg}")
+        
+        # Get tx_reference from response
+        tx_reference = paygate_response.get("tx_reference")
+        if not tx_reference:
+            logger.error(f"Missing tx_reference in PayGateGlobal response: {paygate_response}")
+            raise HTTPException(status_code=500, detail="Invalid response from payment service")
         
         # Create transaction record
         transaction = Transaction(
             type="DEPOSIT",
             amount=data.amount,
             status="PENDING",
-            reference=paygate_response.tx_reference,
+            reference=tx_reference,
             receiver_wallet_id=current_user.wallet.id
         )
         session.add(transaction)
         session.commit()
         
+        logger.info(f"Deposit transaction created: tx_ref={tx_reference}, identifier={identifier}, user_id={current_user.id}")
+        
         return {
             "message": "Deposit initiated successfully. Please complete payment on your phone.",
-            "tx_reference": paygate_response.tx_reference,
+            "tx_reference": tx_reference,
             "identifier": identifier,
             "status": "pending"
         }

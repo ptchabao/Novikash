@@ -121,16 +121,37 @@ def generate_payment_link(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
+    """
+    Generate a payment link for external payments.
+    Supports both query parameters and JSON body.
+    
+    Request body (JSON):
+    {
+        "amount": 1000.0
+    }
+    
+    Query parameter:
+    ?amount=1000.0
+    """
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid amount")
     
-    # Generate a unique link
+    # Generate a unique link for PayGateGlobal Method 2
     link_id = str(uuid.uuid4())
-    # In a real app, store this in DB or use a service
-    payment_link = f"https://novikash.com/pay/{link_id}?user={current_user.id}&amount={amount}"
     
-    # For now, just return the link
-    return {"payment_link": payment_link}
+    # Build PayGateGlobal payment page URL using Method 2
+    import os
+    api_key = os.getenv("PAYGATE_API_KEY")
+    base_url = os.getenv("PAYGATE_BASE_URL", "https://paygateglobal.com")
+    
+    # The payment link can be used to redirect customers to PayGateGlobal
+    payment_page_url = f"{base_url}/v1/page?token={api_key}&amount={amount}&identifier={link_id}&url=https://novikash.com/payment-callback"
+    
+    return {
+        "payment_link": payment_page_url,
+        "identifier": link_id,
+        "amount": amount
+    }
 
 @router.get("/check-user/{phone}")
 def check_user_exists(
