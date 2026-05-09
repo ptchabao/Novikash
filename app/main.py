@@ -11,7 +11,7 @@ app.include_router(wallet.router, prefix="/wallet", tags=["Wallet"])
 app.include_router(loans.router, prefix="/loans", tags=["Loans"])
 app.include_router(payments.router, prefix="/payments", tags=["Payments"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-app.include_router(kyc.router, prefix="/kyc", tags=["KYC"])
+app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 
 # Serve static files for KYC documents
 app.mount("/static", StaticFiles(directory="uploads"), name="static")

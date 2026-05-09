@@ -16,3 +16,4 @@ dist/
 uploads/
 novikash_app/
 .DS_Store
+.env
