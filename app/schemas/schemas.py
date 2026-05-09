@@ -66,9 +66,14 @@ class TransactionRead(BaseModel):
 
 class PaymentRequest(BaseModel):
     amount: float
-    currency: str = "XOF"
-    phone: str # MTN/Moov number
+    currency: Optional[str] = "XOF"
+    phone: Optional[str] = None # MTN/Moov number
+    phone_number: Optional[str] = None # Alternative field name
     network: Optional[str] = None # FLOOZ or TMONEY
+    
+    class Config:
+        # Allow population by field name
+        populate_by_name = True
 
 # --- PayGateGlobal Schemas ---
 

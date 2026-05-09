@@ -75,6 +75,11 @@ router = APIRouter()
 async def deposit(data: PaymentRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     """Initiate a deposit using PayGateGlobal"""
     try:
+        # Get phone number from either field
+        phone_number = data.phone or data.phone_number
+        if not phone_number:
+            raise HTTPException(status_code=400, detail="Phone number is required")
+        
         # Generate unique identifier for this transaction
         identifier = str(uuid.uuid4())
         
@@ -83,7 +88,7 @@ async def deposit(data: PaymentRequest, current_user: User = Depends(get_current
         
         # Initiate payment with PayGateGlobal
         paygate_response = await initiate_paygate_payment(
-            phone_number=data.phone,
+            phone_number=phone_number,
             amount=data.amount,
             description=f"Deposit to NoviKash wallet",
             identifier=identifier,
