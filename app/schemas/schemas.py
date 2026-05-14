@@ -72,13 +72,13 @@ class TontineRead(BaseModel):
     transactions: List[TontineTransactionRead] = []
 
 class TontineCreate(BaseModel):
-    lock_duration_days: int # 10, 20, or 30
+    lock_duration_days: int # 10, 20, 30, or 90
 
 class TontineDepositRequest(BaseModel):
     amount: float
     
 class TontineLockRequest(BaseModel):
-    lock_duration_days: int # 10, 20, or 30
+    lock_duration_days: int # 10, 20, 30, or 90
 
 # --- Transaction Schemas ---
 

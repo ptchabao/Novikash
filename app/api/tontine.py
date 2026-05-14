@@ -141,10 +141,10 @@ def lock_tontine(
 ):
     """Lock tontine account for specified duration"""
     # Validate lock duration
-    if data.lock_duration_days not in [10, 20, 30]:
+    if data.lock_duration_days not in [10, 20, 30, 90]:
         raise HTTPException(
             status_code=400, 
-            detail="Lock duration must be 10, 20, or 30 days"
+            detail="Lock duration must be 10, 20, 30, or 90 days"
         )
     
     tontine = get_or_create_tontine(current_user, session)
@@ -229,38 +229,62 @@ def get_tontine_transactions(
         for t in transactions
     ]
 
-@router.get("/status")
-def get_tontine_status(
+@router.post("/withdraw", response_model=TontineTransactionRead)
+def withdraw_from_tontine(
+    data: TontineDepositRequest,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
-    """Get detailed tontine status including time remaining"""
+    """Withdraw funds from tontine account to main wallet (only when not locked)"""
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+    
+    # Get or create tontine
     tontine = get_or_create_tontine(current_user, session)
     
-    # Check if lock period has expired
-    if tontine.is_locked and tontine.lock_end_date:
-        if datetime.utcnow() >= tontine.lock_end_date:
-            tontine.is_locked = False
-            tontine.status = "ACTIVE"
-            tontine.updated_at = datetime.utcnow()
-            session.add(tontine)
-            session.commit()
-            session.refresh(tontine)
+    # Check if tontine is locked
+    if tontine.is_locked:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot withdraw from locked tontine account"
+        )
     
-    time_remaining_seconds = 0
-    if tontine.is_locked and tontine.lock_end_date:
-        remaining = tontine.lock_end_date - datetime.utcnow()
-        time_remaining_seconds = max(0, int(remaining.total_seconds()))
+    if tontine.balance < data.amount:
+        raise HTTPException(status_code=400, detail="Insufficient funds in tontine account")
     
-    return {
-        "id": tontine.id,
-        "balance": tontine.balance,
-        "is_locked": tontine.is_locked,
-        "status": tontine.status,
-        "lock_duration_days": tontine.lock_duration_days,
-        "lock_start_date": tontine.lock_start_date,
-        "lock_end_date": tontine.lock_end_date,
-        "time_remaining_seconds": time_remaining_seconds,
-        "created_at": tontine.created_at,
-        "updated_at": tontine.updated_at
-    }
+    # Get main wallet
+    wallet = current_user.wallet
+    
+    # Deduct from tontine
+    tontine.balance -= data.amount
+    tontine.updated_at = datetime.utcnow()
+    session.add(tontine)
+    
+    # Add to main wallet
+    wallet.balance_available += data.amount
+    session.add(wallet)
+    
+    # Record transaction
+    transaction = TontineTransaction(
+        tontine_id=tontine.id,
+        type="WITHDRAWAL",
+        amount=data.amount,
+        currency="XOF",
+        status="SUCCESS",
+        reference=f"TONT-WIT-{uuid.uuid4().hex[:12].upper()}",
+        description="Withdrawal to main wallet"
+    )
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+    
+    return TontineTransactionRead(
+        id=transaction.id,
+        type=transaction.type,
+        amount=transaction.amount,
+        currency=transaction.currency,
+        status=transaction.status,
+        reference=transaction.reference,
+        description=transaction.description,
+        created_at=transaction.created_at
+    )

@@ -59,7 +59,7 @@ class Tontine(SQLModel, table=True):
 class TontineTransaction(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     tontine_id: int = Field(foreign_key="tontine.id")
-    type: str # DEPOSIT, INTEREST
+    type: str # DEPOSIT, WITHDRAWAL, INTEREST
     amount: float
     currency: str = Field(default="XOF")
     status: str = Field(default="SUCCESS") # SUCCESS, FAILED

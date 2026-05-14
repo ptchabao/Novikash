@@ -139,6 +139,12 @@ class ApiService {
     });
   }
 
+  Future<Response> withdrawFromTontine(double amount) async {
+    return await _dio.post('/tontine/withdraw', data: {
+      'amount': amount,
+    });
+  }
+
   Future<Response> getTontineTransactions() async {
     return await _dio.get('/tontine/transactions');
   }

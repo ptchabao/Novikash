@@ -153,6 +153,14 @@ class _TontineScreenState extends State<TontineScreen> {
                   setDialogState(() => _selectedLockDuration = value);
                 },
               ),
+              RadioListTile<int>(
+                title: const Text('3 mois (90 jours)'),
+                value: 90,
+                groupValue: _selectedLockDuration,
+                onChanged: (value) {
+                  setDialogState(() => _selectedLockDuration = value);
+                },
+              ),
             ],
           ),
           actions: [
@@ -191,6 +199,103 @@ class _TontineScreenState extends State<TontineScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showWithdrawDialog() {
+    final tontine = context.read<TontineProvider>().tontine;
+    if (tontine == null || tontine.balance <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucun fonds disponible dans la tontine.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (tontine.isLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible de retirer des fonds d\'une tontine bloquée.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    _amountController.clear();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Retirer des fonds'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Solde disponible: ${tontine.balance.toStringAsFixed(0)} XOF'),
+            const SizedBox(height: 16),
+            const Text('Entrez le montant à retirer de votre tontine:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _amountController,
+              decoration: InputDecoration(
+                hintText: 'Montant (XOF)',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                prefixIcon: const Icon(Icons.attach_money),
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final amount = double.tryParse(_amountController.text);
+              if (amount == null || amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Montant invalide')),
+                );
+                return;
+              }
+
+              if (amount > tontine.balance) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Montant supérieur au solde disponible')),
+                );
+                return;
+              }
+
+              final provider = context.read<TontineProvider>();
+              final success = await provider.withdrawFromTontine(amount, context);
+              if (mounted) {
+                Navigator.pop(context);
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${amount.toStringAsFixed(0)} XOF retiré(s) avec succès'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(provider.error ?? 'Erreur lors du retrait'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Retirer'),
+          ),
+        ],
       ),
     );
   }
@@ -432,35 +537,57 @@ class _TontineScreenState extends State<TontineScreen> {
                   const SizedBox(height: 24),
 
                   // Action Buttons
-                  Row(
+                  Column(
                     children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: tontineProvider.isLoading
-                              ? null
-                              : () => _showDepositDialog(),
-                          icon: const Icon(Icons.arrow_forward),
-                          label: const Text('Vers Épargne'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: Colors.green,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: tontineProvider.isLoading
+                                  ? null
+                                  : () => _showDepositDialog(),
+                              icon: const Icon(Icons.arrow_forward),
+                              label: const Text('Vers Épargne'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                backgroundColor: Colors.green,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: tontine.isLocked || tontine.balance <= 0 || tontineProvider.isLoading
+                                  ? null
+                                  : () => _showLockDialog(),
+                              icon: const Icon(Icons.lock),
+                              label: const Text('Bloquer'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                backgroundColor: tontine.isLocked ? Colors.grey : Colors.blue,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: tontine.isLocked || tontine.balance <= 0 || tontineProvider.isLoading
                               ? null
-                              : () => _showLockDialog(),
-                          icon: const Icon(Icons.lock),
-                          label: const Text('Bloquer'),
+                              : () => _showWithdrawDialog(),
+                          icon: const Icon(Icons.arrow_back),
+                          label: const Text('Retirer vers Principal'),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: tontine.isLocked ? Colors.grey : Colors.blue,
+                            backgroundColor: tontine.isLocked || tontine.balance <= 0 ? Colors.grey : Colors.orange,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -493,22 +620,30 @@ class _TontineScreenState extends State<TontineScreen> {
                                 decoration: BoxDecoration(
                                   color: transaction.type == 'DEPOSIT'
                                       ? Colors.green.shade100
-                                      : Colors.blue.shade100,
+                                      : transaction.type == 'WITHDRAWAL'
+                                          ? Colors.orange.shade100
+                                          : Colors.blue.shade100,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
                                   transaction.type == 'DEPOSIT'
                                       ? Icons.arrow_downward
-                                      : Icons.trending_up,
+                                      : transaction.type == 'WITHDRAWAL'
+                                          ? Icons.arrow_upward
+                                          : Icons.trending_up,
                                   color: transaction.type == 'DEPOSIT'
                                       ? Colors.green
-                                      : Colors.blue,
+                                      : transaction.type == 'WITHDRAWAL'
+                                          ? Colors.orange
+                                          : Colors.blue,
                                 ),
                               ),
                               title: Text(
                                 transaction.type == 'DEPOSIT'
                                     ? 'Dépôt depuis portefeuille principal'
-                                    : 'Intérêt gagné',
+                                    : transaction.type == 'WITHDRAWAL'
+                                        ? 'Retrait vers portefeuille principal'
+                                        : 'Intérêt gagné',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -533,7 +668,7 @@ class _TontineScreenState extends State<TontineScreen> {
                                 ],
                               ),
                               trailing: Text(
-                                '${transaction.type == 'DEPOSIT' ? '+' : '+'}${transaction.amount.toStringAsFixed(0)} XOF',
+                                '${transaction.type == 'WITHDRAWAL' ? '-' : '+'}${transaction.amount.toStringAsFixed(0)} XOF',
                                 style: TextStyle(
                                   color: transaction.type == 'DEPOSIT'
                                       ? Colors.green
