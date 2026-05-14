@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const String kApiBaseUrl = 'http://10.0.2.2:8000';
+const String kApiBaseUrl = 'https://novikash.espacehotsi-int.fr';
 
 class ApiService {
   final Dio _dio = Dio(BaseOptions(
