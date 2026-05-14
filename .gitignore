@@ -14,5 +14,6 @@ dist/
 .vscode/
 *.iml
 uploads/
+novikash_app/
 .DS_Store
 .env
