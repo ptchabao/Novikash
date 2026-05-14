@@ -46,6 +46,40 @@ class UserRead(BaseModel):
     created_at: datetime
     wallet: Optional[WalletRead] = None
 
+# --- Tontine Schemas ---
+
+class TontineTransactionRead(BaseModel):
+    id: int
+    type: str
+    amount: float
+    currency: str
+    status: str
+    reference: str
+    description: Optional[str] = None
+    created_at: datetime
+
+class TontineRead(BaseModel):
+    id: int
+    balance: float
+    currency: str
+    status: str
+    lock_duration_days: int
+    lock_start_date: Optional[datetime] = None
+    lock_end_date: Optional[datetime] = None
+    is_locked: bool
+    created_at: datetime
+    updated_at: datetime
+    transactions: List[TontineTransactionRead] = []
+
+class TontineCreate(BaseModel):
+    lock_duration_days: int # 10, 20, or 30
+
+class TontineDepositRequest(BaseModel):
+    amount: float
+    
+class TontineLockRequest(BaseModel):
+    lock_duration_days: int # 10, 20, or 30
+
 # --- Transaction Schemas ---
 
 class TransferRequest(BaseModel):

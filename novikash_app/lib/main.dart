@@ -5,6 +5,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:novikash_app/core/theme.dart';
 import 'package:novikash_app/providers/auth_provider.dart';
+import 'package:novikash_app/providers/tontine_provider.dart';
+import 'package:novikash_app/providers/wallet_provider.dart';
 import 'package:novikash_app/ui/screens/dashboard_screen.dart';
 import 'package:novikash_app/ui/screens/login_screen.dart';
 
@@ -17,6 +19,8 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: authProvider),
+        ChangeNotifierProvider(create: (_) => TontineProvider()),
+        ChangeNotifierProvider(create: (_) => WalletProvider()),
       ],
       child: const NovikashApp(),
     ),

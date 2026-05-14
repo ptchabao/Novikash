@@ -25,6 +25,7 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     wallet: "Wallet" = Relationship(back_populates="user")
+    tontine: Optional["Tontine"] = Relationship(back_populates="user")
     loans: List["Loan"] = Relationship(back_populates="borrower")
     guarantees: List["LoanGuarantee"] = Relationship(back_populates="guarantor")
 
@@ -36,6 +37,37 @@ class Wallet(SQLModel, table=True):
     currency: str = Field(default="XOF") # CFA Franc
     
     user: User = Relationship(back_populates="wallet")
+
+# --- Tontine (Savings Account) ---
+
+class Tontine(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", unique=True)
+    balance: float = Field(default=0.0)
+    currency: str = Field(default="XOF")
+    status: str = Field(default="ACTIVE") # ACTIVE, UNLOCKED
+    lock_duration_days: int = Field(default=30) # 10, 20, or 30 days
+    lock_start_date: Optional[datetime] = None
+    lock_end_date: Optional[datetime] = None
+    is_locked: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    user: User = Relationship(back_populates="tontine")
+    transactions: List["TontineTransaction"] = Relationship(back_populates="tontine")
+
+class TontineTransaction(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tontine_id: int = Field(foreign_key="tontine.id")
+    type: str # DEPOSIT, INTEREST
+    amount: float
+    currency: str = Field(default="XOF")
+    status: str = Field(default="SUCCESS") # SUCCESS, FAILED
+    reference: str = Field(unique=True)
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    tontine: Tontine = Relationship(back_populates="transactions")
 
 # --- Transactions ---
 
