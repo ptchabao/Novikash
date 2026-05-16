@@ -7,6 +7,7 @@ import 'package:novikash_app/core/theme.dart';
 import 'package:novikash_app/providers/auth_provider.dart';
 import 'package:novikash_app/providers/tontine_provider.dart';
 import 'package:novikash_app/providers/wallet_provider.dart';
+import 'package:novikash_app/providers/loan_provider.dart';
 import 'package:novikash_app/ui/screens/dashboard_screen.dart';
 import 'package:novikash_app/ui/screens/login_screen.dart';
 
@@ -21,6 +22,7 @@ void main() async {
         ChangeNotifierProvider.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => TontineProvider()),
         ChangeNotifierProvider(create: (_) => WalletProvider()),
+        ChangeNotifierProvider(create: (_) => LoanProvider()),
       ],
       child: const NovikashApp(),
     ),

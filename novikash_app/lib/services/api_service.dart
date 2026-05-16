@@ -92,16 +92,51 @@ class ApiService {
   }
 
   // Loans
-  Future<Response> requestLoan(double amount, List<String> guarantors, {String loanType = 'ALOBA'}) async {
+  Future<Response> getLoansOverview() async {
+    return await _dio.get('/loans/overview');
+  }
+
+  Future<Response> activateNoviPlus(Map<String, dynamic> data) async {
+    return await _dio.post('/loans/novi-plus/activate', data: data);
+  }
+
+  Future<Response> simulateLoan(double amount, {int weeks = 4}) async {
+    return await _dio.get('/loans/simulate', queryParameters: {
+      'amount': amount,
+      'weeks': weeks,
+    });
+  }
+
+  Future<Response> acceptLoanTerms() async {
+    return await _dio.post('/loans/terms/accept');
+  }
+
+  Future<Response> requestLoan(
+    double amount,
+    List<String> guarantors, {
+    String loanType = 'ALOBA',
+    bool termsAccepted = true,
+  }) async {
     return await _dio.post('/loans/request', data: {
       'loan_type': loanType,
       'amount': amount,
       'guarantors': guarantors,
+      'terms_accepted': termsAccepted,
     });
   }
 
   Future<Response> getLoanHistory() async {
     return await _dio.get('/loans/history');
+  }
+
+  Future<Response> getPendingGuarantees() async {
+    return await _dio.get('/loans/guarantees/pending');
+  }
+
+  Future<Response> respondToGuarantee(int loanId, bool accept) async {
+    return await _dio.post('/loans/$loanId/guarantee/respond', data: {
+      'accept': accept,
+    });
   }
 
   Future<Response> repayLoan(int loanId) async {

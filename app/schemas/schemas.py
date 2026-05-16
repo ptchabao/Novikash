@@ -46,6 +46,19 @@ class UserRead(BaseModel):
     created_at: datetime
     wallet: Optional[WalletRead] = None
 
+class AdminUserRead(BaseModel):
+    id: int
+    phone: str
+    email: Optional[str] = None
+    role: str
+    is_verified: bool
+    is_kyc_verified: bool
+    identity_type: Optional[str] = None
+    identity_number: Optional[str] = None
+    identity_document_url: Optional[str] = None
+    created_at: datetime
+    wallet: Optional[WalletRead] = None
+
 # --- Tontine Schemas ---
 
 class TontineTransactionRead(BaseModel):
@@ -152,7 +165,8 @@ class PayGateWebhookData(BaseModel):
 class LoanRequest(BaseModel):
     loan_type: str = "ALOBA"  # NOVI+, ALOBA
     amount: float
-    guarantors: List[str] # List of phone numbers
+    guarantors: List[str] = []  # List of phone numbers
+    terms_accepted: bool = False
 
 class GuaranteeResponse(BaseModel):
     accept: bool
@@ -166,6 +180,74 @@ class LoanRead(BaseModel):
     total_amount: float
     status: str
     due_date: datetime
+    created_at: datetime
+
+class NoviPlusActivateRequest(BaseModel):
+    first_name: str
+    last_name: str
+    employer: str
+    contract_type: str  # CDI, CDD
+    contract_end_date: Optional[datetime] = None
+    partner_bank: str
+    account_number: str
+    declared_salary: float
+    identity_number: str
+    bank_consent: bool = False
+
+class NoviPlusProfileRead(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    employer: str
+    contract_type: str
+    contract_end_date: Optional[datetime] = None
+    partner_bank: str
+    account_number: str
+    declared_salary: float
+    verified_salary: Optional[float] = None
+    status: str
+    rejection_reason: Optional[str] = None
+    submitted_at: Optional[datetime] = None
+    activated_at: Optional[datetime] = None
+
+class LoanEligibilityRead(BaseModel):
+    can_request: bool
+    reason: Optional[str] = None
+    max_amount: float = 0.0
+    wallet_balance: float = 0.0
+    multiplier: float = 5.0
+    min_wallet_required: float = 2000.0
+    global_cap: float = 100000.0
+    weekly_interest_rate: float = 0.01
+    max_weeks: int = 4
+    is_suspended: bool = False
+    suspended_until: Optional[datetime] = None
+
+class LoanOverviewRead(BaseModel):
+    active_loan: Optional[LoanRead] = None
+    loans: List[LoanRead] = []
+    has_active_loan: bool
+    novi_plus: Optional[NoviPlusProfileRead] = None
+    novi_plus_eligibility: LoanEligibilityRead
+    aloba_eligibility: LoanEligibilityRead
+    pending_guarantee_count: int = 0
+    terms_accepted: bool = False
+
+class LoanSimulationRead(BaseModel):
+    amount: float
+    weeks: int
+    interest_rate_per_week: float
+    interest_amount: float
+    total_to_repay: float
+    due_date: datetime
+
+class PendingGuaranteeRead(BaseModel):
+    guarantee_id: int
+    loan_id: int
+    borrower_phone: str
+    loan_amount: float
+    amount_to_guarantee: float
+    status: str
     created_at: datetime
 
 # --- Admin Schemas ---
@@ -195,3 +277,58 @@ class KYCSubmission(BaseModel):
 
 class KYCUpdate(BaseModel):
     is_kyc_verified: bool
+
+class StaffMeRead(BaseModel):
+    id: int
+    phone: str
+    email: Optional[str] = None
+    role: str
+    permissions: List[str]
+
+class ManualWalletAdjustment(BaseModel):
+    amount: float
+    reason: str
+    reference: Optional[str] = None
+
+class AdminDashboardStats(BaseModel):
+    total_users: int
+    verified_users: int
+    pending_kyc: int
+    total_wallet_balance: float
+    total_locked_balance: float
+    active_loans: int
+    pending_loans: int
+    pending_novi_plus: int
+    transactions_today: int
+    deposits_today: float
+    withdrawals_today: float
+    manual_credits_today: float
+
+class AdminTransactionRead(TransactionRead):
+    sender_wallet_id: Optional[int] = None
+    receiver_wallet_id: Optional[int] = None
+    sender_phone: Optional[str] = None
+    receiver_phone: Optional[str] = None
+
+class LoanAdminRead(LoanRead):
+    borrower_phone: Optional[str] = None
+
+class NoviPlusAdminRead(NoviPlusProfileRead):
+    user_id: int
+    user_phone: Optional[str] = None
+
+class NoviPlusVerifyRequest(BaseModel):
+    approve: bool
+    verified_salary: Optional[float] = None
+    rejection_reason: Optional[str] = None
+
+class LoanStatusUpdate(BaseModel):
+    status: str  # ACTIVE, REPAID, REJECTED, DEFAULTED
+
+class AdminAuditEntry(BaseModel):
+    admin_id: int
+    admin_phone: str
+    action: str
+    target: Optional[str] = None
+    details: dict = {}
+    created_at: str

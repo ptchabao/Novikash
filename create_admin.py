@@ -1,7 +1,7 @@
 import sys
 import os
 from sqlmodel import Session, select, create_engine
-from app.models.models import User
+from app.models.models import User, Wallet
 from app.core.security import get_password_hash
 from app.core.database import DATABASE_URL
 
@@ -15,6 +15,8 @@ def create_superadmin(phone, password):
             existing.is_verified = True
             existing.password_hash = get_password_hash(password)
             session.add(existing)
+            if not existing.wallet:
+                session.add(Wallet(user_id=existing.id))
         else:
             new_user = User(
                 phone=phone,
@@ -23,6 +25,9 @@ def create_superadmin(phone, password):
                 is_verified=True
             )
             session.add(new_user)
+            session.commit()
+            session.refresh(new_user)
+            session.add(Wallet(user_id=new_user.id))
         session.commit()
         print(f"SuperAdmin {phone} created/updated successfully.")
 

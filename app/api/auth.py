@@ -8,6 +8,7 @@ from app.core.database import get_session, init_db
 from app.core.security import get_password_hash, verify_password, create_access_token, ALGORITHM, SECRET_KEY
 from app.models.models import User, Wallet
 from app.schemas.schemas import UserCreate, UserLogin, Token, TokenData, UserRead, OTPVerify, PINSetup
+from app.core.rbac import STAFF_ROLES, has_permission
 
 router = APIRouter()
 
@@ -36,10 +37,26 @@ async def get_current_user(token: str = Depends(oauth2_scheme), session: Session
         raise credentials_exception
     return user
 
-async def get_admin_user(current_user: User = Depends(get_current_user)):
+async def get_staff_user(current_user: User = Depends(get_current_user)):
+    if current_user.role not in STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="Staff access required")
+    return current_user
+
+async def get_admin_user(current_user: User = Depends(get_staff_user)):
+    """Backward-compatible: ADMIN and SUPERADMIN only."""
     if current_user.role not in ["ADMIN", "SUPERADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+def require_permission(permission: str):
+    async def _checker(current_user: User = Depends(get_staff_user)):
+        if not has_permission(current_user.role, permission):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied: {permission}",
+            )
+        return current_user
+    return _checker
 
 def generate_otp():
     return str(random.randint(100000, 999999))
@@ -113,11 +130,11 @@ def login(user_data: UserLogin, session: Session = Depends(get_session)):
     if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid phone or password")
     
-    if not user.is_verified:
+    if not user.is_verified and user.role not in STAFF_ROLES:
         raise HTTPException(status_code=403, detail="Phone number not verified")
-    
-    access_token = create_access_token(data={"sub": user.phone})
-    return {"access_token": access_token, "token_type": "bearer"}
+
+    access_token = create_access_token(data={"sub": user.phone, "role": user.role})
+    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
 
 @router.post("/set-pin")
 def set_pin(data: PINSetup, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):

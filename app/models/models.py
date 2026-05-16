@@ -28,6 +28,8 @@ class User(SQLModel, table=True):
     tontine: Optional["Tontine"] = Relationship(back_populates="user")
     loans: List["Loan"] = Relationship(back_populates="borrower")
     guarantees: List["LoanGuarantee"] = Relationship(back_populates="guarantor")
+    novi_plus_profile: Optional["NoviPlusProfile"] = Relationship(back_populates="user")
+    loan_profile: Optional["UserLoanProfile"] = Relationship(back_populates="user")
 
 class Wallet(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -109,6 +111,39 @@ class LoanGuarantee(SQLModel, table=True):
     
     loan: Loan = Relationship(back_populates="guarantees")
     guarantor: User = Relationship(back_populates="guarantees")
+
+class NoviPlusProfile(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", unique=True)
+    first_name: str
+    last_name: str
+    employer: str
+    contract_type: str  # CDI, CDD
+    contract_end_date: Optional[datetime] = None
+    partner_bank: str
+    account_number: str
+    declared_salary: float
+    verified_salary: Optional[float] = None
+    identity_number: Optional[str] = None
+    bank_consent: bool = Field(default=False)
+    status: str = Field(default="DRAFT")  # DRAFT, PENDING_BANK, ACTIVE, REJECTED
+    rejection_reason: Optional[str] = None
+    submitted_at: Optional[datetime] = None
+    activated_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user: User = Relationship(back_populates="novi_plus_profile")
+
+class UserLoanProfile(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", unique=True)
+    aloba_multiplier: float = Field(default=5.0)  # x5 or x3 after delay
+    delay_count: int = Field(default=0)
+    suspended_until: Optional[datetime] = None
+    terms_accepted_at: Optional[datetime] = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user: User = Relationship(back_populates="loan_profile")
 
 # --- Extras ---
 
