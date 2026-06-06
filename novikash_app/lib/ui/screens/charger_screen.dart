@@ -251,10 +251,9 @@ class _ChargerScreenState extends State<ChargerScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Réseau: $_selectedNetwork', style: const TextStyle(fontWeight: FontWeight.w500)),
-                  ElevatedButton.icon(
+                  TextButton(
                     onPressed: _showNetworkSelectionDialog,
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Changer'),
+                    child: const Text('Changer'),
                   ),
                 ],
               ),
@@ -264,24 +263,30 @@ class _ChargerScreenState extends State<ChargerScreen> {
             const SizedBox(height: 8),
             const Text('Via votre numéro mobile money', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _personalRecharge,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Text('Recharger'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _personalRecharge,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Recharger'),
+              ),
             ),
             const SizedBox(height: 32),
             const Text('Lien de paiement Novikash', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             const Text('Générez un lien pour recevoir des fonds', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _generatePaymentLink,
-              child: const Text('Générer Lien de Paiement'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _generatePaymentLink,
+                child: const Text('Générer Lien de Paiement'),
+              ),
             ),
           ],
         ),
