@@ -127,19 +127,20 @@ async def check_paygate_balance() -> Dict[str, Any]:
 
 @router.post("/deposit")
 async def deposit(data: PaymentRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
-    """Initiate a deposit using PayGateGlobal"""
+    """Initiate a deposit using PayGateGlobal. Requires network (FLOOZ or TMONEY)"""
     try:
-        # Get phone number from either field
-        phone_number = data.phone or data.phone_number
-        if not phone_number:
-            raise HTTPException(status_code=400, detail="Phone number is required")
-        
-        # Validate network
+        # Validate network first (required)
         if not data.network:
-            raise HTTPException(status_code=400, detail="Network (FLOOZ or TMONEY) is required")
+            raise HTTPException(status_code=400, detail="Network is required. Must be 'FLOOZ' or 'TMONEY'")
         
-        if data.network.upper() not in ["FLOOZ", "TMONEY"]:
-            raise HTTPException(status_code=400, detail="Network must be FLOOZ or TMONEY")
+        network_upper = data.network.upper().strip()
+        if network_upper not in ["FLOOZ", "TMONEY"]:
+            raise HTTPException(status_code=400, detail=f"Invalid network: {data.network}. Must be FLOOZ or TMONEY")
+        
+        # Get phone number from either field
+        phone_number = (data.phone or data.phone_number or "").strip()
+        if not phone_number:
+            raise HTTPException(status_code=400, detail="Phone number is required. Provide 'phone' or 'phone_number'")
         
         # Generate unique identifier for this transaction
         identifier = str(uuid.uuid4())
@@ -150,7 +151,7 @@ async def deposit(data: PaymentRequest, current_user: User = Depends(get_current
             amount=data.amount,
             description=f"Deposit to NoviKash wallet",
             identifier=identifier,
-            network=data.network.upper()
+            network=network_upper
         )
         
         # Check response status code
@@ -187,18 +188,21 @@ async def deposit(data: PaymentRequest, current_user: User = Depends(get_current
         session.add(transaction)
         session.commit()
         
-        logger.info(f"Deposit transaction created: tx_ref={tx_reference}, identifier={identifier}, user_id={current_user.id}")
+        logger.info(f"Deposit transaction created: tx_ref={tx_reference}, identifier={identifier}, network={network_upper}, user_id={current_user.id}")
         
         return {
-            "message": "Deposit initiated successfully. Please complete payment on your phone.",
+            "message": "Deposit initiated successfully. USSD prompt will appear on your phone.",
             "tx_reference": tx_reference,
             "identifier": identifier,
-            "status": "pending"
+            "network": network_upper,
+            "status": "pending",
+            "action": "show_ussd_prompt"  # Frontend should display USSD code or wait for device prompt
         }
         
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception(f"Deposit error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 @router.post("/webhook")

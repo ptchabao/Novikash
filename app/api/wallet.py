@@ -7,6 +7,9 @@ from app.models.models import User, Wallet, Transaction, Notification
 from app.schemas.schemas import WalletRead, TransactionRead, TransferRequest
 from app.core.currency import convert_amount, get_exchange_rate
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -196,13 +199,17 @@ def generate_payment_link(
             "amount": float(amount),
             "network": network.upper() if network else None,
             "description": description,
-            "status": "pending"
+            "status": "pending",
+            "action": "open_browser",  # Frontend should open this link in browser
+            "instructions": "Tap 'Open PayGate' to continue payment. Choose your network (FLOOZ/TMONEY) if not pre-selected."
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid request: {str(e)}")
+        import traceback
+        logger.exception(f"Payment link generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating payment link: {str(e)}")
 
 @router.get("/check-user/{phone}")
 def check_user_exists(
