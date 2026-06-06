@@ -31,6 +31,14 @@ npm run dev
 
 Ouvrir [http://localhost:3000](http://localhost:3000) — connexion avec le téléphone et mot de passe admin.
 
+### Lanceur pratique
+
+```bash
+./start-admin.sh dev
+```
+
+> Le script initialise `.env.local` si nécessaire, installe les dépendances, et lance le serveur.
+
 ## Docker
 
 Depuis le dossier `admin` :
