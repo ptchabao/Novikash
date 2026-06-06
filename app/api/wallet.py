@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from typing import List
+from typing import List, Dict, Any
 from app.core.database import get_session
 from app.api.auth import get_current_user
 from app.models.models import User, Wallet, Transaction, Notification
@@ -117,42 +117,92 @@ def transfer_external(
 
 @router.post("/generate-payment-link")
 def generate_payment_link(
-    amount: float,
+    data: Dict[str, Any],
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
     """
     Generate a payment link for external payments.
-    Supports both query parameters and JSON body.
     
     Request body (JSON):
     {
-        "amount": 1000.0
+        "amount": 1000.0,
+        "network": "FLOOZ",  # Optional: FLOOZ or TMONEY
+        "description": "Payment for service",  # Optional
+        "phone": "+228XXXXXXXX"  # Optional
     }
-    
-    Query parameter:
-    ?amount=1000.0
     """
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Invalid amount")
-    
-    # Generate a unique link for PayGateGlobal Method 2
-    link_id = str(uuid.uuid4())
-    
-    # Build PayGateGlobal payment page URL using Method 2
+    from app.schemas.schemas import PayGatePageRequest
+    from urllib.parse import urlencode
     import os
-    api_key = os.getenv("PAYGATE_API_KEY")
-    base_url = os.getenv("PAYGATE_BASE_URL", "https://paygateglobal.com")
-    callback_url = os.getenv("PAYGATE_CALLBACK_URL", "https://novikash.com/payment-callback")
     
-    # The payment link can be used to redirect customers to PayGateGlobal
-    payment_page_url = f"{base_url}/v1/page?token={api_key}&amount={amount}&identifier={link_id}&url={callback_url}"
-    
-    return {
-        "payment_link": payment_page_url,
-        "identifier": link_id,
-        "amount": amount
-    }
+    try:
+        # Validate input data
+        amount = data.get("amount")
+        if not amount or float(amount) <= 0:
+            raise HTTPException(status_code=400, detail="Valid amount is required")
+        
+        network = data.get("network", "")
+        if network and network.upper() not in ["FLOOZ", "TMONEY"]:
+            raise HTTPException(status_code=400, detail="Network must be FLOOZ or TMONEY")
+        
+        description = data.get("description", f"Payment for NoviKash")
+        phone = data.get("phone", "")
+        
+        # Generate a unique link for PayGateGlobal Method 2
+        identifier = str(uuid.uuid4())
+        
+        # Build PayGateGlobal payment page URL using Method 2
+        api_key = os.getenv("PAYGATE_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="PayGate API not configured")
+        
+        base_url = os.getenv("PAYGATE_BASE_URL", "https://paygateglobal.com")
+        callback_url = os.getenv("PAYGATE_CALLBACK_URL", "https://novikash.com/payment-callback")
+        
+        # Build query parameters
+        params = {
+            "token": api_key,
+            "amount": float(amount),
+            "identifier": identifier,
+            "url": callback_url,
+            "description": description
+        }
+        
+        # Add optional parameters
+        if network:
+            params["network"] = network.upper()
+        if phone:
+            params["phone"] = phone
+        
+        # Build the payment URL
+        query_string = urlencode(params)
+        payment_page_url = f"{base_url}/v1/page?{query_string}"
+        
+        # Create transaction record
+        transaction = Transaction(
+            type="DEPOSIT",
+            amount=float(amount),
+            status="PENDING",
+            reference=identifier,
+            receiver_wallet_id=current_user.wallet.id
+        )
+        session.add(transaction)
+        session.commit()
+        
+        return {
+            "payment_link": payment_page_url,
+            "identifier": identifier,
+            "amount": float(amount),
+            "network": network.upper() if network else None,
+            "description": description,
+            "status": "pending"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid request: {str(e)}")
 
 @router.get("/check-user/{phone}")
 def check_user_exists(
