@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, root_validator
+from pydantic import BaseModel, EmailStr, model_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -156,11 +156,11 @@ class PayGateStatusRequest(BaseModel):
     tx_reference: Optional[str] = None
     identifier: Optional[str] = None
 
-    @root_validator
-    def require_identifying_field(cls, values):
-        if not values.get("tx_reference") and not values.get("identifier"):
+    @model_validator(mode='after')
+    def require_identifying_field(self):
+        if not self.tx_reference and not self.identifier:
             raise ValueError("Either tx_reference or identifier must be provided")
-        return values
+        return self
 
 class PayGateStatusResponse(BaseModel):
     tx_reference: str
