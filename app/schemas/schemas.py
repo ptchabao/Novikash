@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, root_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -117,6 +117,7 @@ class PaymentRequest(BaseModel):
     phone: Optional[str] = None # MTN/Moov number
     phone_number: Optional[str] = None # Alternative field name
     network: Optional[str] = None # FLOOZ or TMONEY
+    description: Optional[str] = None
     
     class Config:
         # Allow population by field name
@@ -135,9 +136,31 @@ class PayGateInitiateResponse(BaseModel):
     tx_reference: str
     status: int  # 0: success, 2: invalid token, 4: invalid params, 6: duplicate
 
+class PayGatePageRequest(BaseModel):
+    amount: float
+    identifier: Optional[str] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
+    phone: Optional[str] = None
+    network: Optional[str] = None
+
+class PayGatePageResponse(BaseModel):
+    payment_link: str
+    identifier: str
+    amount: float
+    description: Optional[str] = None
+    phone: Optional[str] = None
+    network: Optional[str] = None
+
 class PayGateStatusRequest(BaseModel):
     tx_reference: Optional[str] = None
     identifier: Optional[str] = None
+
+    @root_validator
+    def require_identifying_field(cls, values):
+        if not values.get("tx_reference") and not values.get("identifier"):
+            raise ValueError("Either tx_reference or identifier must be provided")
+        return values
 
 class PayGateStatusResponse(BaseModel):
     tx_reference: str

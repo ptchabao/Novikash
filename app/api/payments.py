@@ -6,10 +6,11 @@ import uuid
 import os
 import httpx
 import logging
+from urllib.parse import quote
 from app.core.database import get_session
 from app.api.auth import get_current_user, get_admin_user
 from app.models.models import User, Wallet, Transaction, Notification
-from app.schemas.schemas import PaymentRequest, TransactionRead, PayGateInitiateRequest, PayGateInitiateResponse, PayGateStatusRequest, PayGateStatusResponse, PayGateBalanceResponse, PayGateWebhookData
+from app.schemas.schemas import PaymentRequest, TransactionRead, PayGateInitiateRequest, PayGateInitiateResponse, PayGatePageRequest, PayGatePageResponse, PayGateStatusRequest, PayGateStatusResponse, PayGateBalanceResponse, PayGateWebhookData
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,16 @@ router = APIRouter()
 
 PAYGATE_API_KEY = os.getenv("PAYGATE_API_KEY")
 PAYGATE_BASE_URL = os.getenv("PAYGATE_BASE_URL", "https://paygateglobal.com")
+PAYGATE_CALLBACK_URL = os.getenv("PAYGATE_CALLBACK_URL", "https://novikash.com/payment-callback")
+
+if not PAYGATE_API_KEY:
+    logger.warning("PAYGATE_API_KEY is not configured. PayGateGlobal endpoints will fail until it is set.")
 
 async def initiate_paygate_payment(phone_number: str, amount: float, description: str, identifier: str, network: str) -> Dict[str, Any]:
     """Initiate a payment using PayGateGlobal API Method 1"""
+    if not PAYGATE_API_KEY:
+        raise HTTPException(status_code=500, detail="PAYGATE_API_KEY is not configured")
+
     url = f"{PAYGATE_BASE_URL}/api/v1/pay"
     payload = {
         "auth_token": PAYGATE_API_KEY,
@@ -90,6 +98,9 @@ async def check_payment_status(tx_reference: Optional[str] = None, identifier: O
 
 async def check_paygate_balance() -> Dict[str, Any]:
     """Check PayGateGlobal account balance"""
+    if not PAYGATE_API_KEY:
+        raise HTTPException(status_code=500, detail="PAYGATE_API_KEY is not configured")
+
     url = f"{PAYGATE_BASE_URL}/api/v1/check-balance"
     payload = {
         "auth_token": PAYGATE_API_KEY
@@ -251,7 +262,7 @@ def process_paygate_webhook_async(webhook_data: PayGateWebhookData, sqlite_db_pa
         session.add(transaction)
         session.commit()
 
-@router.post("/status")
+@router.post("/status", response_model=PayGateStatusResponse)
 async def check_payment_status_endpoint(
     request: PayGateStatusRequest, 
     current_user: User = Depends(get_current_user)
@@ -278,6 +289,46 @@ async def get_paygate_balance(admin_user: User = Depends(get_admin_user)):
         raise HTTPException(status_code=500, detail=f"Payment service error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+@router.post("/page-link", response_model=PayGatePageResponse)
+async def generate_paygate_page_link(
+    data: PayGatePageRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Generate a PayGateGlobal redirect page URL (Method 2)."""
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid amount")
+
+    identifier = data.identifier or f"{current_user.id}-{uuid.uuid4()}"
+    query = [
+        ("token", PAYGATE_API_KEY),
+        ("amount", str(data.amount)),
+        ("identifier", identifier)
+    ]
+
+    if data.description:
+        query.append(("description", data.description))
+    if data.url:
+        query.append(("url", data.url))
+    else:
+        query.append(("url", PAYGATE_CALLBACK_URL))
+    if data.phone:
+        query.append(("phone", data.phone))
+    if data.network:
+        query.append(("network", data.network))
+
+    payment_page_url = f"{PAYGATE_BASE_URL}/v1/page?" + "&".join(
+        f"{key}={quote(value)}" for key, value in query if value is not None
+    )
+
+    return {
+        "payment_link": payment_page_url,
+        "identifier": identifier,
+        "amount": data.amount,
+        "description": data.description,
+        "phone": data.phone,
+        "network": data.network
+    }
 
 @router.post("/withdraw")
 def withdraw(data: PaymentRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):

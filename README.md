@@ -55,6 +55,9 @@ docker-compose up --build
    - `ACCESS_TOKEN_EXPIRE_MINUTES`: 30
    - `LOAN_INTEREST_RATE`: 0.1
    - `DEFAULT_REPAYMENT_DAYS`: 7
+   - `PAYGATE_API_KEY`: Your PayGateGlobal auth token
+   - `PAYGATE_BASE_URL`: `https://paygateglobal.com` (optional)
+   - `PAYGATE_CALLBACK_URL`: Your payment callback URL for PayGateGlobal page redirect
 
 ## Getting Started
 
@@ -79,5 +82,9 @@ docker-compose up --build
 - `GET /wallet/me`: View balance.
 - `POST /loans/request`: Request a social loan.
 - `POST /loans/{id}/guarantee/respond`: Accept/Refuse a guarantee request.
-- `POST /payments/deposit`: Initiate a Mobile Money deposit.
+- `POST /payments/deposit`: Initiate a Mobile Money deposit via PayGateGlobal.
+- `POST /payments/status`: Check PayGateGlobal payment status by tx_reference or merchant identifier.
+- `GET /payments/balance`: Admin-only PayGateGlobal balance check.
+- `POST /payments/page-link`: Generate a PayGateGlobal payment page URL (Method 2).
+- `POST /wallet/generate-payment-link`: Generate a PayGateGlobal payment page URL from wallet routes.
 - `POST /admin/process-defaults`: Trigger recovery for expired loans.

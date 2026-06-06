@@ -143,9 +143,10 @@ def generate_payment_link(
     import os
     api_key = os.getenv("PAYGATE_API_KEY")
     base_url = os.getenv("PAYGATE_BASE_URL", "https://paygateglobal.com")
+    callback_url = os.getenv("PAYGATE_CALLBACK_URL", "https://novikash.com/payment-callback")
     
     # The payment link can be used to redirect customers to PayGateGlobal
-    payment_page_url = f"{base_url}/v1/page?token={api_key}&amount={amount}&identifier={link_id}&url=https://novikash.com/payment-callback"
+    payment_page_url = f"{base_url}/v1/page?token={api_key}&amount={amount}&identifier={link_id}&url={callback_url}"
     
     return {
         "payment_link": payment_page_url,
