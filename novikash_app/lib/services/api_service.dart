@@ -79,15 +79,20 @@ class ApiService {
     });
   }
 
-  Future<Response> generatePaymentLink(double amount) async {
+  Future<Response> generatePaymentLink(double amount, {String? network, String? phone, String? description}) async {
     return await _dio.post('/wallet/generate-payment-link', data: {
       'amount': amount,
+      if (network != null) 'network': network,
+      if (phone != null) 'phone': phone,
+      if (description != null) 'description': description,
     });
   }
 
-  Future<Response> deposit(double amount) async {
+  Future<Response> deposit(double amount, {String? network, String? phone}) async {
     return await _dio.post('/payments/deposit', data: {
       'amount': amount,
+      if (network != null) 'network': network,
+      if (phone != null) 'phone': phone,
     });
   }
 
